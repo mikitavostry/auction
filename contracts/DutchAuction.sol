@@ -19,6 +19,7 @@ contract DutchAuction {
     AggregatorV3Interface public priceFeed;
     uint256 public auctionCounter;
     mapping(uint256 => Auction) public auctions;
+    mapping(address => mapping(uint256 => bool)) public nftListed;
 
     event AuctionCreated(
         uint256 auctionId,
@@ -45,6 +46,8 @@ contract DutchAuction {
         uint256 endPriceUsd,
         uint256 duration
     ) external {
+        require(!nftListed[nftAddress][tokenId], "NFT is already listed");
+
         IERC721 nft = IERC721(nftAddress);
         require(nft.ownerOf(tokenId) == msg.sender, "You are not the owner");
         require(
@@ -52,7 +55,7 @@ contract DutchAuction {
             "Contract not approved"
         );
 
-        uint256 ethPrice = getETHPriceInUSD(); // 18 decimals
+        uint256 ethPrice = getETHPriceInUSD();
         uint256 startPriceWei = (startPriceUsd * 1e36) / ethPrice;
         uint256 endPriceWei = (endPriceUsd * 1e36) / ethPrice;
 
@@ -70,6 +73,8 @@ contract DutchAuction {
             active: true
         });
 
+        nftListed[nftAddress][tokenId] = true;
+
         emit AuctionCreated(auctionCounter, msg.sender, nftAddress, tokenId);
     }
 
@@ -85,12 +90,13 @@ contract DutchAuction {
         return auction.startPriceWei - decay;
     }
 
-    function getCurrentPriceInUsd(
+    function getCurrentPrices(
         uint256 auctionId
-    ) public view returns (uint256) {
-        uint256 priceWei = getCurrentPrice(auctionId);
-        uint256 ethPrice = getETHPriceInUSD();
-        return (priceWei * ethPrice) / 1e36;
+    ) external view returns (uint256, uint256) {
+        uint256 ethPriceWei = getCurrentPrice(auctionId);
+        uint256 ethUsd = getETHPriceInUSD();
+        uint256 usdPrice = (ethPriceWei * ethUsd) / 1e36;
+        return (ethPriceWei, usdPrice);
     }
 
     function buy(uint256 auctionId) external payable {
@@ -101,7 +107,7 @@ contract DutchAuction {
         require(msg.value >= price, "Insufficient payment");
 
         auction.active = false;
-
+        nftListed[auction.nftAddress][auction.tokenId] = false;
         IERC721(auction.nftAddress).safeTransferFrom(
             auction.seller,
             msg.sender,

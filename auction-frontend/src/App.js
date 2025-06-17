@@ -4,7 +4,7 @@ import erc721Abi from "./erc721Abi";
 import "./App.css";
 import abi from "./DutchAuction.json";
 
-const contractAddress = "0x5a79b1A802606027c230FEeb3FA16da2E1Ca352F";
+const contractAddress = "0xB8Cf0dCac7d08399CA4E18F0a284268Df1f656e7";
 
 function App() {
   const [provider, setProvider] = useState(null);
@@ -80,8 +80,15 @@ function App() {
   };
 
   const fetchPrice = async () => {
-    const p = await contract.getCurrentPriceInUsd(auctionId);
-    setPrice(p.toString() + " $");
+    try {
+      const [priceWei, priceUsd] = await contract.getCurrentPrices(auctionId);
+      const priceEth = formatEther(priceWei);
+      const priceUsdFormatted = Number(priceUsd).toFixed(2);
+      setPrice(`${priceEth} ETH (${priceUsdFormatted} USD)`);
+    } catch (e) {
+      console.error("Error fetching prices:", e);
+      alert("Błąd przy pobieraniu ceny.");
+    }
   };
 
   const buy = async () => {
